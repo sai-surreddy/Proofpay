@@ -520,21 +520,37 @@ function moneyResult(p, m) {
 function milestoneActions(p, m) {
   if (p.status !== "active") return "";
   const out = [];
-  if (role === "payee" && ["open", "rejected"].includes(m.status)) {
+  if (role === "payee" && ["open", "rejected", "in_review"].includes(m.status)) {
+    const uploadLabel =
+      m.status === "rejected"
+        ? "Submit new proof (previous proof was rejected)"
+        : m.status === "in_review"
+        ? "Submit updated proof (replace or correct evidence in review)"
+        : "Submit proof for this milestone";
     out.push(`<form class="upload" data-mid="${m.id}">
-      <label>${m.status === "rejected" ? "Submit new proof" : "Submit proof for this milestone"}</label>
+      <label>${esc(uploadLabel)}</label>
       <label class="drop"><input type="file" name="files" accept="image/jpeg,image/png,image/webp,image/gif,application/pdf" multiple>
         <span>Drop photos, screenshots or PDFs here, or click to choose</span></label>
       <div class="thumbs preview"></div>
       <div class="grid2" style="margin-top:10px">
         <div><label>Note to the payer</label><textarea name="note" rows="2" placeholder="What did you finish?"></textarea></div>
-        <div><label>Links <span class="muted">(optional)</span></label><textarea name="links" rows="2" placeholder="https://…"></textarea></div>
+        <div><label>Links <span class="muted">(demo URL, staging link)</span></label><textarea name="links" rows="2" placeholder="https://…"></textarea></div>
       </div>
       <div class="row" style="margin-top:10px"><span class="spacer"></span><button class="btn primary" type="submit">Submit for AI verification</button></div>
     </form>`);
   }
   if (role === "payee" && m.status === "rejected") {
-    out.push(`<div class="row" style="margin-top:10px"><button class="btn ghost small" data-act="dispute" data-mid="${m.id}">Dispute this decision</button></div>`);
+    out.push(`<div class="row" style="margin-top:10px; gap:8px">
+      <button class="btn ghost small" data-act="dispute" data-mid="${m.id}">Dispute this decision</button>
+      <span class="spacer"></span>
+      <button class="btn danger small" data-act="refund" data-mid="${m.id}">Don't upload again: Cancel milestone & refund</button>
+    </div>`);
+  } else if (role === "payee" && m.status === "in_review") {
+    out.push(`<div class="row" style="margin-top:10px; gap:8px">
+      <span class="muted small" style="align-self:center">Under human review. You can upload updated proof above, or cancel below.</span>
+      <span class="spacer"></span>
+      <button class="btn danger small" data-act="refund" data-mid="${m.id}">Don't upload again: Cancel milestone & refund</button>
+    </div>`);
   }
   if (["payer", "reviewer"].includes(role) && m.status === "in_review") {
     out.push(`<div class="review-box">
@@ -551,7 +567,11 @@ function milestoneActions(p, m) {
     out.push(`<div class="row" style="margin-top:10px"><button class="btn primary small" data-act="retry" data-mid="${m.id}">Retry payout</button></div>`);
   }
   if (["payer", "reviewer"].includes(role) && ["open", "rejected", "in_review", "release_failed"].includes(m.status)) {
-    out.push(`<div class="row" style="margin-top:10px"><span class="spacer"></span><button class="btn danger small" data-act="refund" data-mid="${m.id}">Cancel milestone and refund</button></div>`);
+    out.push(`<div class="row" style="margin-top:10px">
+      ${["open", "rejected", "in_review"].includes(m.status) ? `<span class="muted small" style="align-self:center">Payee submits proof under <b>Acting as: Payee</b>.</span>` : ""}
+      <span class="spacer"></span>
+      <button class="btn danger small" data-act="refund" data-mid="${m.id}">Cancel milestone and refund</button>
+    </div>`);
   }
   return out.join("");
 }

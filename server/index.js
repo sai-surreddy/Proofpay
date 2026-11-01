@@ -188,7 +188,7 @@ app.post("/api/projects/:id/milestones/:mid/evidence", upload.array("files", 8),
   const milestone = engine.getMilestone(project, req.params.mid);
   engine.requireRole(role(req), "payee");
   if (project.status !== "active") throw new engine.EngineError("Evidence can be submitted once the agreement is funded.");
-  if (!["open", "rejected"].includes(milestone.status)) {
+  if (!["open", "rejected", "in_review"].includes(milestone.status)) {
     throw new engine.EngineError(`This milestone is "${milestone.status}" and is not accepting evidence.`);
   }
   const uploaded = req.files || [];
@@ -201,7 +201,7 @@ app.post("/api/projects/:id/milestones/:mid/evidence", upload.array("files", 8),
 
   await withLock(`${project.id}:${milestone.id}`, async () => {
     const previousStatus = milestone.status;
-    if (!["open", "rejected"].includes(previousStatus)) {
+    if (!["open", "rejected", "in_review"].includes(previousStatus)) {
       throw new engine.EngineError(`This milestone is "${previousStatus}" and is not accepting evidence.`);
     }
     milestone.status = "verifying";
@@ -328,8 +328,8 @@ app.post("/api/projects/:id/milestones/:mid/refund", async (req, res) => {
   const project = engine.getProject(req.params.id);
   const milestone = engine.getMilestone(project, req.params.mid);
   const r = role(req);
-  engine.requireRole(r, "payer", "reviewer");
-  const reason = String(req.body?.reason || "Milestone cancelled.").trim().slice(0, 500);
+  engine.requireRole(r, "payer", "reviewer", "payee");
+  const reason = String(req.body?.reason || (r === "payee" ? "Payee cancelled milestone and refunded to payer." : "Milestone cancelled.")).trim().slice(0, 500);
   await withLock(`${project.id}:${milestone.id}`, () => engine.refundMilestone(project, milestone, r, reason));
   res.json(view(project));
 });
