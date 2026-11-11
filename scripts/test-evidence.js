@@ -8,7 +8,7 @@ const milestone = {
     'Mockup includes a hero section with a placeholder for the bakery logo.',
     'Mockup shows a menu section listing at least 8 items with prices.',
     'Mockup includes a photo gallery layout with placeholders for at least 6 images.',
-    'Mockup includes a contact form with name, email, and message fields.',
+    'Mockup includes a contact form with name, email, phone, and message fields.',
     'Mockup provides separate desktop and mobile views demonstrating responsive breakpoints.'
   ],
   requiredEvidence: [
@@ -33,7 +33,7 @@ const verdict = await ai.verifyEvidence({
     currency: "USD"
   },
   milestone,
-  note: "Delivering the complete design mockup for Maya's Bakes showing side-by-side desktop (1200px) and mobile (375px) responsive breakpoints, with hero section and bakery logo placeholder, full menu of 8 items with prices, 6 photo gallery placeholders, and working contact form with name, email and message fields.",
+  note: "Delivering the complete design mockup for Maya's Bakes showing side-by-side desktop (1200px) and mobile (375px) responsive breakpoints, with hero section and bakery logo placeholder, full menu of 8 items with prices, 6 photo gallery placeholders, and working contact form with name, email, phone, and message fields.",
   files,
   links: [],
   trustFlags: [],

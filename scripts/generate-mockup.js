@@ -40,6 +40,8 @@ const svg = `
   <rect x="80" y="225" width="990" height="170" rx="8" fill="url(#heroGrad)"/>
   <rect x="110" y="245" width="130" height="28" rx="4" fill="rgba(255,255,255,0.2)"/>
   <text x="120" y="264" font-size="12" font-weight="bold" fill="#ffffff">HERO SECTION</text>
+  <rect x="255" y="245" width="145" height="28" rx="4" fill="#ffffff"/>
+  <text x="270" y="264" font-size="12" font-weight="bold" fill="#b45309">[BAKERY LOGO]</text>
   <text x="110" y="305" font-size="28" font-weight="bold" fill="#ffffff">Fresh Artisan Breads &amp; Pastries Daily</text>
   <text x="110" y="335" font-size="14" fill="#fef3c7">Handcrafted with organic local flour, slow-fermented for exceptional flavor.</text>
   <rect x="110" y="350" width="130" height="32" rx="6" fill="#ffffff"/>
@@ -112,7 +114,7 @@ const svg = `
   <text x="920" y="700" font-size="10" fill="#94a3b8">Artisan Tart Prep</text>
 
   <!-- 4. CONTACT FORM SECTION -->
-  <text x="80" y="775" font-size="18" font-weight="bold" fill="#1e293b">Contact Us Section (Name, Email, Message Form)</text>
+  <text x="80" y="775" font-size="18" font-weight="bold" fill="#1e293b">Contact Us Section (Name, Email, Phone &amp; Message Form)</text>
   <line x1="80" y1="785" x2="1070" y2="785" stroke="#e2e8f0" stroke-width="1"/>
 
   <rect x="80" y="800" width="990" height="380" rx="8" fill="#f8fafc" stroke="#e2e8f0"/>
@@ -125,12 +127,16 @@ const svg = `
   <rect x="540" y="845" width="400" height="35" rx="4" fill="#ffffff" stroke="#cbd5e1"/>
   <text x="555" y="868" font-size="12" fill="#94a3b8">[Enter your email address]</text>
 
-  <text x="110" y="915" font-size="13" font-weight="bold" fill="#475569">Message:</text>
-  <rect x="110" y="925" width="830" height="80" rx="4" fill="#ffffff" stroke="#cbd5e1"/>
-  <text x="125" y="955" font-size="12" fill="#94a3b8">[Type your inquiry, catering request, or feedback...]</text>
+  <text x="110" y="908" font-size="13" font-weight="bold" fill="#475569">Phone:</text>
+  <rect x="110" y="918" width="400" height="35" rx="4" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="125" y="941" font-size="12" fill="#94a3b8">[Enter your phone number, e.g. (555) 123-4567]</text>
 
-  <rect x="110" y="1025" width="180" height="38" rx="6" fill="#d97706"/>
-  <text x="145" y="1049" font-size="14" font-weight="bold" fill="#ffffff">Send Message</text>
+  <text x="110" y="980" font-size="13" font-weight="bold" fill="#475569">Message:</text>
+  <rect x="110" y="990" width="830" height="75" rx="4" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="125" y="1020" font-size="12" fill="#94a3b8">[Type your inquiry, catering request, or feedback...]</text>
+
+  <rect x="110" y="1085" width="180" height="38" rx="6" fill="#d97706"/>
+  <text x="145" y="1109" font-size="14" font-weight="bold" fill="#ffffff">Send Message</text>
 
 
   <!-- ==================== MOBILE VIEW (RIGHT) ==================== -->
@@ -148,6 +154,8 @@ const svg = `
 
   <!-- Mobile Hero -->
   <rect x="1155" y="205" width="380" height="140" rx="8" fill="url(#heroGrad)"/>
+  <rect x="1405" y="217" width="115" height="24" rx="4" fill="#ffffff"/>
+  <text x="1415" y="233" font-size="10" font-weight="bold" fill="#b45309">[BAKERY LOGO]</text>
   <text x="1170" y="235" font-size="18" font-weight="bold" fill="#ffffff">Maya's Bakes</text>
   <text x="1170" y="260" font-size="12" fill="#fef3c7">Fresh artisan breads and pastries daily.</text>
   <rect x="1170" y="285" width="100" height="26" rx="4" fill="#ffffff"/>
@@ -188,15 +196,22 @@ const svg = `
   <text x="1155" y="760" font-size="14" font-weight="bold" fill="#1e293b">Contact Form</text>
   <text x="1155" y="780" font-size="10" fill="#64748b">Name: [Text Field]</text>
   <rect x="1155" y="785" width="365" height="24" rx="4" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="1165" y="801" font-size="10" fill="#94a3b8">[Full name]</text>
 
-  <text x="1155" y="825" font-size="10" fill="#64748b">Email: [Email Field]</text>
-  <rect x="1155" y="830" width="365" height="24" rx="4" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="1155" y="828" font-size="10" fill="#64748b">Email: [Email Field]</text>
+  <rect x="1155" y="833" width="365" height="24" rx="4" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="1165" y="849" font-size="10" fill="#94a3b8">[Email address]</text>
 
-  <text x="1155" y="870" font-size="10" fill="#64748b">Message: [Message Field]</text>
-  <rect x="1155" y="875" width="365" height="45" rx="4" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="1155" y="876" font-size="10" fill="#64748b">Phone: [Phone Field]</text>
+  <rect x="1155" y="881" width="365" height="24" rx="4" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="1165" y="897" font-size="10" fill="#94a3b8">[Phone number]</text>
 
-  <rect x="1155" y="935" width="130" height="28" rx="4" fill="#d97706"/>
-  <text x="1175" y="953" font-size="11" font-weight="bold" fill="#ffffff">Submit Message</text>
+  <text x="1155" y="924" font-size="10" fill="#64748b">Message: [Message Field]</text>
+  <rect x="1155" y="929" width="365" height="48" rx="4" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="1165" y="947" font-size="10" fill="#94a3b8">[Your message...]</text>
+
+  <rect x="1155" y="995" width="130" height="28" rx="4" fill="#d97706"/>
+  <text x="1175" y="1013" font-size="11" font-weight="bold" fill="#ffffff">Submit Message</text>
 </svg>
 `;
 
