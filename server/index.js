@@ -199,25 +199,11 @@ app.post("/api/projects/:id/milestones/:mid/evidence", upload.array("files", 8),
     .slice(0, 10);
   if (!uploaded.length) throw new engine.EngineError("Upload at least one photo, screenshot or PDF.");
 
-  await withLock(`${project.id}:${milestone.id}`, async () => {
+  const prep = await withLock(`${project.id}:${milestone.id}`, async () => {
     const previousStatus = milestone.status;
     if (!["open", "rejected", "in_review"].includes(previousStatus)) {
       throw new engine.EngineError(`This milestone is "${previousStatus}" and is not accepting evidence.`);
     }
-    milestone.status = "verifying";
-    save();
-    try {
-      await processEvidence();
-    } finally {
-      if (milestone.status === "verifying") {
-        milestone.status = previousStatus;
-        save();
-      }
-    }
-  });
-  res.json(view(project));
-
-  async function processEvidence() {
     const files = [];
     for (const f of uploaded) {
       const { sha256, meta } = await inspectFile(f.buffer, f.mimetype);
@@ -225,24 +211,33 @@ app.post("/api/projects/:id/milestones/:mid/evidence", upload.array("files", 8),
       fs.writeFileSync(path.join(UPLOAD_DIR, stored), f.buffer);
       files.push({ name: f.originalname, mime: f.mimetype, size: f.size, sha256, meta, url: `/uploads/${stored}`, buffer: f.buffer });
     }
-
     const state = getState();
     const { flags } = runTrustChecks({ files, project, hashIndex: state.evidenceHashes, milestoneId: milestone.id });
+    const publicFiles = files.map(({ buffer, ...rest }) => rest);
+    const previousAttempts = milestone.attempts.filter((a) => a.ai).map((a) => a.ai);
+    const at = new Date().toISOString();
+    milestone.status = "verifying";
+    milestone.verifying = { at, files: publicFiles, trustFlags: flags, note, links };
+    engine.log(project, "payee", "evidence", `Submitted ${files.length} file(s) for "${milestone.title}".`, {
+      files: publicFiles.map((f) => ({ name: f.name, sha256: f.sha256 })),
+    });
+    save();
+    return { previousStatus, files, publicFiles, flags, previousAttempts, at };
+  });
+
+  const finishVerification = async () => {
+    const { previousStatus, files, publicFiles, flags, previousAttempts, at } = prep;
     const attempt = {
       id: newId("att"),
-      at: new Date().toISOString(),
+      at,
       note,
       links,
-      files: files.map(({ buffer, ...rest }) => rest),
+      files: publicFiles,
       trustFlags: flags,
       ai: null,
       aiError: null,
       decision: null,
     };
-    engine.log(project, "payee", "evidence", `Submitted ${files.length} file(s) for "${milestone.title}".`, {
-      files: attempt.files.map((f) => ({ name: f.name, sha256: f.sha256 })),
-    });
-
     try {
       attempt.ai = await ai.verifyEvidence({
         project,
@@ -251,39 +246,58 @@ app.post("/api/projects/:id/milestones/:mid/evidence", upload.array("files", 8),
         note,
         links,
         trustFlags: flags,
-        previousAttempts: milestone.attempts.filter((a) => a.ai).map((a) => a.ai),
+        previousAttempts,
       });
     } catch (err) {
       attempt.aiError = err.message;
     }
-    attempt.decision = engine.decide(attempt.ai, flags, attempt.aiError);
-    milestone.attempts.push(attempt);
-    for (const f of attempt.files) {
-      state.evidenceHashes[f.sha256] ??= { projectId: project.id, milestoneId: milestone.id, attemptId: attempt.id };
-    }
 
-    if (attempt.ai) {
-      engine.log(
-        project,
-        "agent",
-        "verdict",
-        `Verification agent: ${attempt.ai.verdict.replace(/_/g, " ")} (${Math.round(attempt.ai.confidence * 100)}% confidence). ${attempt.ai.summary}`
-      );
-    } else {
-      engine.log(project, "agent", "verdict_error", attempt.aiError);
-    }
+    await withLock(`${project.id}:${milestone.id}`, async () => {
+      try {
+        attempt.decision = engine.decide(attempt.ai, flags, attempt.aiError);
+        milestone.attempts.push(attempt);
+        const state = getState();
+        for (const f of attempt.files) {
+          state.evidenceHashes[f.sha256] ??= { projectId: project.id, milestoneId: milestone.id, attemptId: attempt.id };
+        }
 
-    if (attempt.decision.outcome === "auto_release") {
-      await engine.releaseMilestone(project, milestone, "agent", attempt.decision.reason);
-    } else if (attempt.decision.outcome === "auto_reject") {
-      milestone.status = "rejected";
-      engine.log(project, "agent", "rejected", `Not released. ${attempt.decision.reason}`);
-    } else {
-      milestone.status = "in_review";
-      engine.log(project, "system", "review", `Sent to human review. ${attempt.decision.reason}`);
-    }
-    save();
+        if (attempt.ai) {
+          engine.log(
+            project,
+            "agent",
+            "verdict",
+            `Verification agent: ${attempt.ai.verdict.replace(/_/g, " ")} (${Math.round(attempt.ai.confidence * 100)}% confidence). ${attempt.ai.summary}`
+          );
+        } else {
+          engine.log(project, "agent", "verdict_error", attempt.aiError);
+        }
+
+        if (attempt.decision.outcome === "auto_release") {
+          await engine.releaseMilestone(project, milestone, "agent", attempt.decision.reason);
+        } else if (attempt.decision.outcome === "auto_reject") {
+          milestone.status = "rejected";
+          engine.log(project, "agent", "rejected", `Not released. ${attempt.decision.reason}`);
+        } else {
+          milestone.status = "in_review";
+          engine.log(project, "system", "review", `Sent to human review. ${attempt.decision.reason}`);
+        }
+      } catch (err) {
+        console.error("Verification completion error:", err);
+      } finally {
+        delete milestone.verifying;
+        if (milestone.status === "verifying") milestone.status = previousStatus;
+        save();
+      }
+    });
+  };
+
+  if (req.query.async === "1") {
+    finishVerification().catch((err) => console.error("Background verification failed:", err));
+    return res.status(202).json(view(project));
   }
+
+  await finishVerification();
+  res.json(view(project));
 });
 
 app.post("/api/projects/:id/milestones/:mid/review", async (req, res) => {
@@ -372,6 +386,25 @@ app.use((err, _req, res, _next) => {
   }
   res.status(status).json({ error: message });
 });
+
+function resetStaleVerifying() {
+  let dirty = false;
+  for (const project of Object.values(getState().projects)) {
+    for (const m of project.milestones || []) {
+      if (m.status === "verifying") {
+        const lastOutcome = m.attempts?.at(-1)?.decision?.outcome;
+        m.status = lastOutcome === "auto_reject" ? "rejected" : m.attempts?.length ? "in_review" : "open";
+        delete m.verifying;
+        dirty = true;
+      } else if (m.verifying) {
+        delete m.verifying;
+        dirty = true;
+      }
+    }
+  }
+  if (dirty) save();
+}
+resetStaleVerifying();
 
 const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || "0.0.0.0";

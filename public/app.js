@@ -30,7 +30,9 @@ function setRole(r) {
   route();
 }
 
-const API_BASE = window.PROOFPAY_API_BASE || "";
+const API_BASE =
+  window.PROOFPAY_API_BASE ||
+  (location.hostname.endsWith("vercel.app") ? "https://proofpay-8fk1.onrender.com" : "");
 const assetUrl = (u) => (u && u.startsWith("/") && API_BASE ? `${API_BASE}${u}` : u);
 
 async function api(path, opts = {}) {
@@ -57,11 +59,27 @@ function toast(msg, isError = false) {
 }
 
 let overlayTimers = [];
+let overlayElapsedTimer = null;
 function showOverlay(title, steps) {
+  hideOverlay();
   const o = document.getElementById("overlay");
   document.getElementById("overlay-title").textContent = title;
   const ol = document.getElementById("overlay-steps");
   ol.innerHTML = steps.map((s) => `<li>${esc(s)}</li>`).join("");
+  let meta = document.getElementById("overlay-meta");
+  if (!meta) {
+    meta = document.createElement("div");
+    meta.id = "overlay-meta";
+    meta.className = "overlay-meta";
+    ol.after(meta);
+  }
+  const started = Date.now();
+  const tick = () => {
+    const s = Math.floor((Date.now() - started) / 1000);
+    meta.textContent = `Working… ${s}s elapsed`;
+  };
+  tick();
+  overlayElapsedTimer = setInterval(tick, 1000);
   o.hidden = false;
   const items = [...ol.children];
   items[0]?.classList.add("active");
@@ -74,6 +92,9 @@ function showOverlay(title, steps) {
 }
 function hideOverlay() {
   overlayTimers.forEach(clearTimeout);
+  overlayTimers = [];
+  clearInterval(overlayElapsedTimer);
+  overlayElapsedTimer = null;
   document.getElementById("overlay").hidden = true;
 }
 
@@ -124,15 +145,41 @@ function moneyBar(b, total) {
 
 // ---------------------------------------------------------------- Router
 
+let pollTimer = null;
+let elapsedTimer = null;
+let routeToken = 0;
+
+function clearProjectTimers() {
+  clearTimeout(pollTimer);
+  clearInterval(elapsedTimer);
+  pollTimer = null;
+  elapsedTimer = null;
+}
+
+function projectVerifySig(p) {
+  return p.milestones.map((m) => `${m.id}:${m.status}:${m.attempts.length}`).join("|");
+}
+
+function updateVerifyingElapsed() {
+  document.querySelectorAll("[data-verifying-at]").forEach((el) => {
+    const started = Date.parse(el.dataset.verifyingAt || "") || Date.now();
+    const out = el.querySelector(".verifying-elapsed");
+    if (out) out.textContent = `${Math.max(0, Math.floor((Date.now() - started) / 1000))}s elapsed`;
+  });
+}
+
 window.addEventListener("hashchange", route);
 async function route() {
+  const token = ++routeToken;
+  clearProjectTimers();
   const hash = location.hash || "#/";
   const m = hash.match(/^#\/p\/([\w-]+)/);
   try {
     if (hash.startsWith("#/new")) return renderNew();
-    if (m) return await renderProject(m[1]);
+    if (m) return await renderProject(m[1], null, token);
     return await renderHome();
   } catch (e) {
+    if (token !== routeToken) return;
     $app.innerHTML = `<div class="card pad empty" style="margin-top:24px">${esc(e.message)}<br><br><a href="#/">Back to agreements</a></div>`;
   }
 }
@@ -303,8 +350,10 @@ function renderNew() {
 
 let editing = false;
 
-async function renderProject(id) {
-  const p = await api(`/api/projects/${id}`);
+async function renderProject(id, prefetched = null, token = routeToken) {
+  clearProjectTimers();
+  const p = prefetched || (await api(`/api/projects/${id}`));
+  if (token !== routeToken) return;
   const b = p.balances;
   const stepIdx = { awaiting_approval: 0, awaiting_funding: 1, active: 2, completed: 4 }[p.status] ?? 0;
   const steps = ["Agree", "Fund", "Prove", "Paid"];
@@ -366,6 +415,40 @@ async function renderProject(id) {
   </div>`;
 
   wireProject(p);
+  if (p.milestones.some((m) => m.status === "verifying")) {
+    const prevSig = projectVerifySig(p);
+    const prevStatuses = Object.fromEntries(p.milestones.map((m) => [m.id, m.status]));
+    elapsedTimer = setInterval(updateVerifyingElapsed, 1000);
+    schedulePoll(p.id, prevSig, prevStatuses, token);
+  }
+}
+
+function schedulePoll(id, prevSig, prevStatuses, token) {
+  pollTimer = setTimeout(async () => {
+    if (token !== routeToken) return;
+    try {
+      const next = await api(`/api/projects/${id}`);
+      if (token !== routeToken) return;
+      if (projectVerifySig(next) === prevSig && next.milestones.some((m) => m.status === "verifying")) {
+        schedulePoll(id, prevSig, prevStatuses, token);
+        return;
+      }
+      for (const m of next.milestones) {
+        if (prevStatuses[m.id] === "verifying" && m.status !== "verifying") {
+          const msg = {
+            released: `"${m.title}" verified and paid out!`,
+            rejected: `"${m.title}" proof was rejected — see feedback below.`,
+            in_review: `"${m.title}" sent to human review.`,
+            release_failed: `"${m.title}" verified, but payout failed.`,
+          }[m.status];
+          if (msg) toast(msg, m.status === "rejected" || m.status === "release_failed");
+        }
+      }
+      await renderProject(id, next, token);
+    } catch {
+      if (token === routeToken) schedulePoll(id, prevSig, prevStatuses, token);
+    }
+  }, 1500);
 }
 
 function actionPanel(p) {
@@ -443,12 +526,31 @@ function milestoneCard(p, m, i) {
         <div><h4>Proven when</h4><ul>${m.acceptanceCriteria.map((c) => `<li>${esc(c)}</li>`).join("")}</ul></div>
         <div><h4>Evidence to upload</h4><ul>${m.requiredEvidence.map((c) => `<li>${esc(c)}</li>`).join("")}</ul></div>
       </div>
+      ${m.status === "verifying" ? verifyingView(p, m) : ""}
       ${last ? attemptView(p, last, true) : ""}
       ${moneyResult(p, m)}
       ${milestoneActions(p, m)}
       ${older.length ? `<details class="older"><summary>${older.length} earlier attempt${older.length > 1 ? "s" : ""}</summary>${older.map((a) => attemptView(p, a, false)).join("")}</details>` : ""}
     </div>`
     }
+  </div>`;
+}
+
+function verifyingView(p, m) {
+  const v = m.verifying || {};
+  const model = config?.ai?.enabled ? config.ai.vision : "AI";
+  const started = Date.parse(v.at || "") || Date.now();
+  const sec = Math.max(0, Math.floor((Date.now() - started) / 1000));
+  return `<div class="verifying-box" data-verifying-at="${esc(v.at || new Date().toISOString())}">
+    <div class="verifying-head">
+      <span class="verifying-dot" aria-hidden="true"></span>
+      <b>AI verification in progress</b>
+      <span class="tiny muted verifying-elapsed">${sec}s elapsed</span>
+    </div>
+    <div class="verifying-bar" aria-hidden="true"><span></span></div>
+    <div class="tiny muted">Files saved and trust checks complete. ${esc(model)} is checking each acceptance criterion…</div>
+    ${v.files?.length ? `<div class="thumbs">${v.files.map((f) => thumb(f)).join("")}</div>` : ""}
+    ${v.note ? `<div class="small"><b>Payee's note:</b> <span class="muted">${esc(v.note)}</span></div>` : ""}
   </div>`;
 }
 
@@ -578,7 +680,7 @@ function milestoneActions(p, m) {
 
 function wireProject(p) {
   const base = `/api/projects/${p.id}`;
-  const reload = () => renderProject(p.id);
+  const reload = (next = null) => renderProject(p.id, next);
 
   document.getElementById("approve-btn")?.addEventListener("click", (e) =>
     busy(e.currentTarget, async () => {
@@ -653,9 +755,20 @@ function wireUpload(p, form, reload) {
   const drop = form.querySelector(".drop");
   const preview = form.querySelector(".preview");
   let files = [];
+  let previewUrls = [];
+  const revokePreviews = () => {
+    previewUrls.forEach((u) => URL.revokeObjectURL(u));
+    previewUrls = [];
+  };
   const show = () => {
+    revokePreviews();
     preview.innerHTML = files
-      .map((f) => (f.type.startsWith("image/") ? `<span class="thumb"><img src="${URL.createObjectURL(f)}" alt=""></span>` : `<span class="thumb">PDF</span>`))
+      .map((f) => {
+        if (!f.type.startsWith("image/")) return `<span class="thumb">PDF</span>`;
+        const u = URL.createObjectURL(f);
+        previewUrls.push(u);
+        return `<span class="thumb"><img src="${u}" alt=""></span>`;
+      })
       .join("");
   };
   input.addEventListener("change", () => {
@@ -672,25 +785,28 @@ function wireUpload(p, form, reload) {
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     if (!files.length) return toast("Add at least one photo, screenshot or PDF.", true);
+    const btn = form.querySelector('button[type="submit"]');
+    const label = btn?.innerHTML;
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "Uploading…";
+    }
     const fd = new FormData();
     files.forEach((f) => fd.append("files", f));
     fd.append("note", form.note.value);
     fd.append("links", form.links.value);
-    showOverlay("Verifying the evidence", [
-      "Fingerprinting files and reading photo metadata",
-      "Running trust checks: reuse, dates, location, edits",
-      `${config.ai.enabled ? config.ai.vision : "AI"} is checking every acceptance criterion`,
-      "Applying the release policy",
-      "Moving money through PayPal",
-    ]);
     try {
-      await api(`/api/projects/${p.id}/milestones/${form.dataset.mid}/evidence`, { body: fd });
+      const updated = await api(`/api/projects/${p.id}/milestones/${form.dataset.mid}/evidence?async=1`, { body: fd });
+      revokePreviews();
+      toast("Uploaded. AI verification running in background…");
+      await reload(updated);
     } catch (err) {
       toast(err.message, true);
-    } finally {
-      hideOverlay();
+      if (btn && btn.isConnected) {
+        btn.disabled = false;
+        btn.innerHTML = label;
+      }
     }
-    await reload();
   });
 }
 

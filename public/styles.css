@@ -311,13 +311,13 @@ details.older summary { cursor: pointer; color: var(--muted); font-weight: 600; 
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 .toast.error { background: var(--red); color: #fff; }
 
-.overlay { position: fixed; inset: 0; background: rgba(8, 15, 30, 0.55); backdrop-filter: blur(4px); display: grid; place-items: center; z-index: 40; padding: 16px; }
+.overlay { position: fixed; inset: 0; background: rgba(8, 15, 30, 0.72); display: grid; place-items: center; z-index: 40; padding: 16px; }
 .overlay[hidden] { display: none; }
 .overlay-card { width: min(440px, 100%); background: var(--surface); border-radius: 18px; padding: 24px; box-shadow: var(--shadow); }
 .overlay-card h3 { font-size: 18px; margin: 16px 0 10px; }
 .scanner { height: 90px; border-radius: 12px; background: linear-gradient(135deg, var(--primary-soft), var(--violet-soft)); position: relative; overflow: hidden; }
-.scan-line { position: absolute; left: 0; right: 0; height: 3px; background: var(--primary); box-shadow: 0 0 16px var(--primary); animation: scan 1.6s ease-in-out infinite alternate; }
-@keyframes scan { from { top: 6%; } to { top: 90%; } }
+.scan-line { position: absolute; left: 0; right: 0; top: 0; height: 3px; background: var(--primary); box-shadow: 0 0 12px var(--primary); will-change: transform; animation: scan 1.4s ease-in-out infinite alternate; }
+@keyframes scan { from { transform: translateY(6px); } to { transform: translateY(81px); } }
 .steps { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; font-size: 14px; }
 .steps li { color: var(--muted); display: flex; gap: 8px; align-items: center; }
 .steps li::before { content: "○"; width: 16px; }
@@ -325,7 +325,15 @@ details.older summary { cursor: pointer; color: var(--muted); font-weight: 600; 
 .steps li.active::before { content: "◉"; color: var(--primary); }
 .steps li.done { color: var(--green); }
 .steps li.done::before { content: "✓"; }
-@media (prefers-reduced-motion: reduce) { .scan-line { animation: none; top: 50%; } }
+.overlay-meta { margin-top: 12px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.verifying-box { margin-top: 16px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--violet) 30%, var(--border)); background: var(--violet-soft); padding: 14px 16px; display: grid; gap: 10px; }
+.verifying-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.verifying-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--violet); will-change: transform, opacity; animation: pulse-dot 1.2s ease-in-out infinite; flex: none; }
+@keyframes pulse-dot { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.35); opacity: 0.45; } }
+.verifying-bar { height: 5px; border-radius: 99px; background: color-mix(in srgb, var(--violet) 16%, transparent); overflow: hidden; position: relative; }
+.verifying-bar > span { position: absolute; inset: 0 auto 0 0; width: 38%; border-radius: 99px; background: linear-gradient(90deg, var(--primary), var(--violet)); will-change: transform; animation: slide-bar 1.3s ease-in-out infinite; }
+@keyframes slide-bar { 0% { transform: translateX(-100%); } 100% { transform: translateX(300%); } }
+@media (prefers-reduced-motion: reduce) { .scan-line { animation: none; transform: translateY(43px); } .verifying-dot, .verifying-bar > span { animation: none; } }
 
 /* ---------- New agreement */
 .new-wrap { max-width: 760px; margin: 24px auto; }

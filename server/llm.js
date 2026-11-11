@@ -11,7 +11,7 @@ const NVIDIA_URL = "https://integrate.api.nvidia.com/v1/chat/completions";
 
 export const NVIDIA_DEFAULTS = {
   text: "deepseek-ai/deepseek-v4.1-flash",
-  vision: "meta/muse-glimmer-30b",
+  vision: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
 };
 const CLAUDE_DEFAULT = "claude-opus-5-5";
 const CLAUDE_FALLBACK_MODELS = new Set(["claude-opus-5-5", "claude-opus-5", "claude-fable-5-1", "claude-sonnet-5-5"]);
@@ -63,13 +63,10 @@ async function toJpeg(buffer, maxSide, quality) {
     .toBuffer();
 }
 
-// Hosted NVIDIA endpoints are happiest with small inline images, so shrink until under ~180 KB.
+// Hosted NVIDIA endpoints are happiest with small inline images, so encode once at 1024px and shrink once if still large.
 async function smallJpeg(buffer) {
-  for (const [side, q] of [[1024, 80], [896, 70], [768, 60], [640, 55]]) {
-    const out = await toJpeg(buffer, side, q);
-    if (out.length <= 180_000) return out;
-  }
-  return toJpeg(buffer, 512, 50);
+  const out = await toJpeg(buffer, 1024, 72);
+  return out.length <= 220_000 ? out : toJpeg(buffer, 768, 55);
 }
 
 // ---------------------------------------------------------------- NVIDIA
@@ -113,7 +110,7 @@ async function nvidiaChatOnce(model, messages) {
         "Content-Type": "application/json",
         Accept: "application/json",
       },
-      body: JSON.stringify({ model, messages, temperature: 0.2, top_p: 0.9, max_tokens: 8192, stream: false }),
+      body: JSON.stringify({ model, messages, temperature: 0.2, top_p: 0.9, max_tokens: 2048, stream: false }),
       signal: AbortSignal.timeout(280_000),
     });
   } catch (err) {
